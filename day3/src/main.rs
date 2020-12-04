@@ -20,8 +20,6 @@ impl fmt::Display for Movement {
 }
 
 fn load_map(path: &str) -> Context {
-    let parts: Vec<&str> = path.split("\\").collect();
-
     let map = fs::read_to_string(path)
         .expect("Unable to load the data file")
         .lines()
@@ -34,7 +32,13 @@ fn load_map(path: &str) -> Context {
 
     Context {
         map,
-        filename: parts[parts.len() - 1].to_string(),
+        filename: path
+            .split("\\")
+            .collect::<Vec<&str>>()
+            .split_last()
+            .unwrap()
+            .0
+            .to_string(),
     }
 }
 
