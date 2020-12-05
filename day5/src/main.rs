@@ -8,7 +8,7 @@ struct Assignment {
 }
 
 impl Assignment {
-    fn number(&self) -> i32 {
+    fn id(&self) -> i32 {
         self.row * 8 + self.column
     }
 }
@@ -20,7 +20,7 @@ impl fmt::Display for Assignment {
             "row {0}, column {1}, seat ID {2}",
             self.row,
             self.column,
-            self.number()
+            self.id()
         )
     }
 }
@@ -62,7 +62,7 @@ fn calibrate_part1() {
             "{0} => {1} [{2}]",
             input.0,
             assignment,
-            match assignment.number() == input.1 {
+            match assignment.id() == input.1 {
                 true => "SUCCESS",
                 _ => "FAILED",
             }
@@ -93,6 +93,13 @@ fn main() {
     println!("=============");
     calibrate_part1();
     let mut assignments = load_assignments(r"C:\Projects\GitHub\advent-of-code-2020\Data\day5.txt");
-    assignments.sort_by(|a, b| b.number().cmp(&a.number()));
+    assignments.sort_by(|a, b| b.id().cmp(&a.id()));
     println!("Max seat {}", assignments[0]);
+
+    // find the hole
+    for i in 0..assignments.len() - 1 {
+        if assignments[i+1].id() != assignments[i].id()-1 {
+            println!("Discontinuity found between {} and {}",assignments[i], assignments[i+1]);
+        }
+    }
 }
