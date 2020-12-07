@@ -78,7 +78,7 @@ fn count_group_affirmatives(responses: Vec<CustomsForm>) -> i32 {
                 })
                 .sum::<i32>()
         })
-        .sum::<i32>()
+        .sum()
 }
 
 fn condense(raw: &str) -> CustomsForm {
