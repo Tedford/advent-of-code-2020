@@ -153,7 +153,7 @@ fn calibrate_part2() {
 }
 
 fn main() {
-    println!("Day 8");
+    println!("Day 9");
     println!("=============");
 
     calibrate_part1();
