@@ -25,78 +25,119 @@ impl fmt::Display for Action {
     }
 }
 
+impl Action {
+    pub fn normalize(&self) -> i32 {
+        match self.direction {
+            Direction::South | Direction::West => self.amount * -1,
+            _ => self.amount,
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
-struct Ship {
-    bearing: Direction,
+struct Location {
     x: i32,
     y: i32,
 }
 
-impl Ship {
-    pub fn new() -> Self {
-        Ship {
-            bearing: Direction::East,
-            x: 0,
-            y: 0,
+impl Location {
+    pub fn distance(&self, loc: Location) -> i32 {
+        (self.x - loc.x).abs() + (self.y - loc.y).abs()
+    }
+
+    pub fn add_x(&self, x: i32) -> Location {
+        Location {
+            y: self.y,
+            x: self.x + x,
         }
     }
 
-    pub fn distance(&self, ship: Ship) -> i32 {
-        (self.x - ship.x).abs() + (self.y - ship.y).abs()
+    pub fn add_y(&self, y: i32) -> Location {
+        Location {
+            y: self.y + y,
+            x: self.x,
+        }
+    }
+}
+
+impl fmt::Display for Location {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({},{})", self.x, self.y)
+    }
+}
+
+#[derive(Clone, Copy)]
+struct Ship {
+    bearing: Direction,
+    location: Location,
+    waypoint: Location,
+}
+
+impl Ship {
+    pub fn new(waypoint: Location) -> Self {
+        Ship {
+            bearing: Direction::East,
+            location: Location { x: 0, y: 0 },
+            waypoint,
+        }
     }
 
-    pub fn travel(&self, action: &Action) -> Ship {
+    pub fn waypoint_travel(&self, action: &Action) -> Ship {
         match action.direction {
-            Direction::North => Ship {
-                bearing: self.bearing,
-                y: self.y + action.amount,
-                x: self.x,
+            Direction::North | Direction::South => Ship {
+                waypoint: self.waypoint.add_y(action.normalize()),
+                ..*self
             },
-            Direction::South => Ship {
-                bearing: self.bearing,
-                y: self.y - action.amount,
-                x: self.x,
+            Direction::East | Direction::West => Ship {
+                waypoint: self.waypoint.add_x(action.normalize()),
+                ..*self
             },
-            Direction::East => Ship {
-                bearing: self.bearing,
-                y: self.y,
-                x: self.x + action.amount,
+            Direction::Left => self.change_bearing(action.amount),
+            Direction::Right => self.change_bearing(-action.amount),
+            Direction::Forward => Ship {
+                location: Location {
+                    x: self.location.x + self.waypoint.x * action.amount,
+                    y: self.location.y + self.waypoint.y * action.amount,
+                },
+                ..*self
             },
-            Direction::West => Ship {
-                bearing: self.bearing,
-                y: self.y,
-                x: self.x - action.amount,
+        }
+    }
+
+    pub fn direct_travel(&self, action: &Action) -> Ship {
+        match action.direction {
+            Direction::North | Direction::South => Ship {
+                location: self.location.add_y(action.normalize()),
+                ..*self
+            },
+            Direction::East | Direction::West => Ship {
+                location: self.location.add_x(action.normalize()),
+                ..*self
             },
             Direction::Left => Ship {
                 bearing: self.turn(action),
-                y: self.y,
-                x: self.x,
+                ..*self
             },
             Direction::Right => Ship {
                 bearing: self.turn(action),
-                y: self.y,
-                x: self.x,
+                ..*self
             },
             Direction::Forward => match self.bearing {
                 Direction::North => Ship {
-                    bearing: self.bearing,
-                    y: self.y + action.amount,
-                    x: self.x,
+                    location: self.location.add_y(action.amount),
+                    ..*self
                 },
                 Direction::South => Ship {
-                    bearing: self.bearing,
-                    y: self.y - action.amount,
-                    x: self.x,
+                    location: self.location.add_y(action.amount * -1),
+                    ..*self
                 },
                 Direction::East => Ship {
-                    bearing: self.bearing,
-                    y: self.y,
-                    x: self.x + action.amount,
+                    location: self.location.add_x(action.amount),
+                    ..*self
                 },
                 Direction::West => Ship {
-                    bearing: self.bearing,
-                    y: self.y,
-                    x: self.x - action.amount,
+                    location: self.location.add_x(action.amount * -1),
+                    ..*self
                 },
                 x => panic!(
                     "Only cardinal directions are supported. {:?} is not a cardinal direction",
@@ -105,6 +146,39 @@ impl Ship {
             },
         }
     }
+
+    fn change_bearing(&self, degree: i32) -> Ship {
+        let mut ship = self.clone();
+
+        for _ in 0 .. (360 + degree).rem_euclid(360) / 90
+        {
+            ship.waypoint = if degree > 0 {
+                Location { x: -ship.waypoint.y, y: ship.waypoint.x}
+            }
+            else {
+                Location { x: ship.waypoint.y, y: -ship.waypoint.x}
+            }
+        }
+
+        // ship.waypoint = match (360 + degree).rem_euclid(360) {
+        //     90 => Location {
+        //         x: -ship.waypoint.y,
+        //         y: ship.waypoint.x,
+        //     },
+        //     180 => Location {
+        //         x: -ship.waypoint.y,
+        //         y: -ship.waypoint.x,
+        //     },
+        //     270 => Location {
+        //         x: ship.waypoint.y,
+        //         y: -ship.waypoint.x,
+        //     },
+        //     _ => ship.waypoint,
+        // };
+
+        ship
+    }
+
     fn turn(&self, action: &Action) -> Direction {
         let headings = match self.bearing {
             Direction::North => [
@@ -175,16 +249,23 @@ fn load(path: &str) -> Vec<Action> {
 
 impl fmt::Display for Ship {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{0:?} at ({1},{2})", self.bearing, self.x, self.y)
+        write!(
+            f,
+            "{:?} at {} heading {}",
+            self.bearing, self.location, self.waypoint
+        )
     }
 }
 
-fn embark(ship: Ship, journey: &[Action]) -> Ship {
+fn embark<T>(ship: Ship, journey: &[Action], travel: T) -> Ship
+where
+    T: Fn(&Ship, &Action) -> Ship,
+{
     let mut ship2 = ship.clone();
 
     for leg in journey {
         print!("{} -> {} -> ", ship2, leg);
-        ship2 = ship2.travel(leg);
+        ship2 = travel(&ship2, leg);
         println!("{}", ship2);
     }
 
@@ -192,9 +273,15 @@ fn embark(ship: Ship, journey: &[Action]) -> Ship {
 }
 
 fn part1(journey: &[Action]) -> i32 {
-    let initial = Ship::new();
-    let ship = embark(initial, journey);
-    initial.distance(ship)
+    let initial = Ship::new(Location { x: 0, y: 0 });
+    let ship = embark(initial, journey, Ship::direct_travel);
+    initial.location.distance(ship.location)
+}
+
+fn part2(journey: &[Action]) -> i32 {
+    let initial = Ship::new(Location { x: 10, y: 1 });
+    let ship = embark(initial, journey, Ship::waypoint_travel);
+    initial.location.distance(ship.location)
 }
 
 fn main() {
@@ -203,13 +290,26 @@ fn main() {
     calibrate_part1();
 
     println!(
-        "Part 1 - {} distance traveled",
-        part1(&load(r"c:\projects\github\advent-of-code-2020\data\day12.txt"))
+        "\n\nPart 1 - {} distance traveled",
+        part1(&load(
+            r"c:\projects\github\advent-of-code-2020\data\day12.txt"
+        ))
+    );
+
+    calibrate_part2();
+
+    // 24119 too low
+    // 42451 too high
+    println!(
+        "\n\nPart 2 - {} distance traveled",
+        part2(&load(
+            r"c:\projects\github\advent-of-code-2020\data\day12.txt"
+        ))
     );
 }
 
 fn calibrate_part1() {
-    println!("Calibration -- Part 1");
+    println!("\n\nCalibration -- Part 1");
     let inputs = [(
         r"c:\projects\github\advent-of-code-2020\data\day12.example.txt",
         25,
@@ -227,4 +327,27 @@ fn calibrate_part1() {
             }
         );
     }
+    println!("\n\n");
+}
+
+fn calibrate_part2() {
+    println!("\n\nCalibration -- Part 2");
+    let inputs = [(
+        r"c:\projects\github\advent-of-code-2020\data\day12.example.txt",
+        286,
+    )];
+
+    for input in inputs.iter() {
+        let value = part2(&load(input.0));
+        println!(
+            "{0} => {1} [{2}]",
+            input.0,
+            value,
+            match value == input.1 {
+                true => "SUCCESS",
+                _ => panic!("FAILED.  Expected {} but calculated {}", input.1, value),
+            }
+        );
+    }
+    println!("\n\n");
 }
